@@ -21,6 +21,9 @@ from tasks.classification_OPENMATCH import Classification
 from utils.gpu import set_gpu
 from utils.logging import get_rich_logger
 from utils.wandb import configure_wandb
+# 기존 import 아래에 추가
+from datasets.ptbxl import get_ptbxl, PTBXLDataset
+from models.resnet1d import ResNet1D
 
 NUM_CLASSES = {
     "cifar10": 6,
@@ -28,6 +31,7 @@ NUM_CLASSES = {
     "svhn": 6,
     "tiny": 100,
     "imagenet": 500,
+    "ptbxl": 3, # [추가]
 }
 
 AUGMENTS = {"semi": SemiAugment, "test": TestAugment}
@@ -92,6 +96,8 @@ def main_worker(local_rank: int, config: object):
         model = ViT(num_classes=num_classes, normalize=config.normalize)
     elif config.backbone_type == "densenet121":
         model = densenet121(num_class=num_classes, normalize=config.normalize)
+    elif config.backbone_type == "resnet1d":
+        model = ResNet1D(num_classes=num_classes, normalize=config.normalize)
     else:
         raise NotImplementedError
 
@@ -189,6 +195,25 @@ def main_worker(local_rank: int, config: object):
         open_test_set = TinyImageNet(
             data_name=config.data, dataset=datasets["test_total"], transform=test_trans
         )
+    elif config.data == "ptbxl":
+        # 1. 기본 데이터셋 로드
+        lb_dset, ulb_dset, val_dset, test_dset = get_ptbxl(config, root=config.root)
+
+        # 2. OpenMatch용으로 '재포장' (모드 변경)
+        # OpenMatch는 3가지 종류의 학습 데이터셋을 요구합니다.
+        labeled_set = PTBXLDataset(lb_dset.data, lb_dset.labels, mode="train_lb")
+        unlabeled_set = PTBXLDataset(ulb_dset.data, ulb_dset.labels, mode="train_ulb")
+        selcted_unlabeled_set = PTBXLDataset(ulb_dset.data, ulb_dset.labels, mode="train_ulb_selected")
+        
+        eval_set = val_dset
+        test_set = test_dset
+        open_test_set = test_dset # OOD 테스트용
+
+        # 로깅용 변수
+        datasets = {
+            'l_train': {'labels': labeled_set.labels},
+            'u_train': {'labels': unlabeled_set.labels}
+        }
 
     elif config.data == "svhn":
 

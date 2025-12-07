@@ -7,7 +7,7 @@ import numpy as np
 
 class ImageAugment(object):
     
-    SUPPORTED_DATASETS = ['cifar10', 'cifar100', 'svhn', 'stl10', 'tiny', 'imagenet', 'imagenet32']
+    SUPPORTED_DATASETS = ['cifar10', 'cifar100', 'svhn', 'stl10', 'tiny', 'imagenet', 'imagenet32','ptbxl']
 
     MEAN = {
         'cifar10':      [0.4914, 0.4822, 0.4465],
@@ -16,7 +16,8 @@ class ImageAugment(object):
         'stl10':        [0.485,  0.456,  0.406],
         'tiny':         [0.4807,  0.4485,  0.3979],
         'imagenet':     [0.485,  0.456,  0.406],
-        'imagenet32':   [0.485,  0.456,  0.406]
+        'imagenet32':   [0.485,  0.456,  0.406],
+        "ptbxl": [0.0, 0.0, 0.0],  # <--- 추가 (더미 값)
     }
 
     STD = {
@@ -26,7 +27,8 @@ class ImageAugment(object):
         'stl10':        [0.229, 0.224, 0.225],
         'tiny':         [0.2618, 0.2537, 0.2676],
         'imagenet':     [0.229, 0.224, 0.225],
-        'imagenet32':   [0.229, 0.224, 0.225]
+        'imagenet32':   [0.229, 0.224, 0.225],
+        "ptbxl": [1.0, 1.0, 1.0],  # <--- 추가
     }
 
     WEAK_AUG_LIST = {
@@ -35,6 +37,7 @@ class ImageAugment(object):
         'svhn':         [True, False, True, True, True, False],
         'tiny':     [True, True, True, True, True, False],
         'imagenet': [True, True, True, True, True, False],
+        "ptbxl": [False, False, False, False, False, False],  # <--- 추가 (이미지 증강 끄기)
     }
 
     def __init__(self,

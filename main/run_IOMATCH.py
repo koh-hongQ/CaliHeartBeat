@@ -18,12 +18,16 @@ from utils.gpu import set_gpu
 from utils.initialization import initialize_weights
 from utils.logging import get_rich_logger
 from utils.wandb import configure_wandb
+# 기존 import 아래에 추가
+from datasets.ptbxl import get_ptbxl, PTBXLDataset
+from models.resnet1d import ResNet1D
 
 NUM_CLASSES = {
     "cifar10": 6,
     "cifar100": 50,
     "svhn": 6,
     "tiny": 100,
+    "ptbxl": 3,  # [추가]
 }
 
 AUGMENTS = {"semi": SemiAugment, "test": TestAugment}
@@ -64,6 +68,18 @@ def main_worker(local_rank: int, config: object):
         model = vgg16_bn(num_class=num_classes)
     elif config.backbone_type == "inceptionv4":
         model = inceptionv4(class_nums=num_classes)
+    elif config.backbone_type == "resnet1d":
+        model = ResNet1D(num_classes=num_classes, normalize=False) # FixMatch는 보통 normalize 안씀 (확인 필요)
+        # [수정] IOMatch 호환성을 위한 패치
+        # ResNet1D의 마지막 레이어(fc 또는 linear)를 'output'이라는 이름으로 연결해줍니다.
+        if hasattr(model, 'fc'):
+            model.output = model.fc
+        elif hasattr(model, 'linear'):
+            model.output = model.linear
+        else:
+            # 만약 둘 다 아니라면 직접 확인이 필요하므로 에러 메시지 출력
+            raise AttributeError("ResNet1D 모델에서 마지막 레이어(fc 또는 linear)를 찾을 수 없습니다.")
+    
     else:
         raise NotImplementedError
 
@@ -165,6 +181,51 @@ def main_worker(local_rank: int, config: object):
         )
         open_test_set = TinyImageNet(
             data_name=config.data, dataset=datasets["test_total"], transform=test_trans
+        )
+    elif config.data == "ptbxl":
+        # 1. PTB-XL 원본 데이터 로드 (딕셔너리 형태)
+        datasets = get_ptbxl(
+            root=config.root,
+            n_label_per_class=config.n_label_per_class,
+            mismatch_ratio=config.mismatch_ratio,  # Open Set 비율 (Unknown Class 비율)
+            logger=logger
+        )
+
+        # 2. Labeled Dataset (학습용, 소량)
+        labeled_set = PTBXLDataset(
+            data=datasets["l_train"]["x"],
+            labels=datasets["l_train"]["y"],
+            mode='labeled'
+        )
+
+        # 3. Unlabeled Dataset (학습용, 대량, IOMatch의 핵심)
+        # 아까 수정한 __getitem__이 'weak_img', 'strong_img'를 반환함
+        unlabeled_set = PTBXLDataset(
+            data=datasets["u_train"]["x"],
+            labels=datasets["u_train"]["y"],
+            mode='unlabeled' 
+        )
+
+        # 4. Validation Set (검증용)
+        eval_set = PTBXLDataset(
+            data=datasets["validation"]["x"],
+            labels=datasets["validation"]["y"],
+            mode='test'
+        )
+
+        # 5. Test Set (Known Classes Only - 닫힌 세상 평가)
+        test_set = PTBXLDataset(
+            data=datasets["test"]["x"],
+            labels=datasets["test"]["y"],
+            mode='test'
+        )
+
+        # 6. Open Set Test (Known + Unknown Classes - 열린 세상 평가)
+        # IOMatch는 Unknown을 얼마나 잘 구별하는지도 평가해야 함
+        open_test_set = PTBXLDataset(
+            data=datasets["test_total"]["x"],
+            labels=datasets["test_total"]["y"],
+            mode='test'
         )
 
     elif config.data == "svhn":

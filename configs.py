@@ -123,7 +123,7 @@ class ConfigBase(object):
             "--data",
             type=str,
             default="cifar10",
-            choices=("cifar10", "cifar100", "tiny", "svhn", "imagenet"),
+            choices=("cifar10", "cifar100", "tiny", "svhn", "imagenet", "ptbxl"),
         )
         parser.add_argument("--mismatch-ratio", type=float, default=0.30)
         parser.add_argument("--n-label-per-class", type=int, default=400)
@@ -166,7 +166,8 @@ class ConfigBase(object):
                 "vgg16_bn",
                 "inceptionv4",
                 "resnet50",
-                "vit"
+                "vit",
+                "resnet1d"  # <--- 여기 추가 (콤마 주의!
             ),
         )
         parser.add_argument(

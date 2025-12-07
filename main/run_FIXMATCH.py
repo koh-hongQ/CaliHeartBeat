@@ -20,6 +20,9 @@ from tasks.classification_FIXMATCH import Classification
 from utils.gpu import set_gpu
 from utils.logging import get_rich_logger
 from utils.wandb import configure_wandb
+# 기존 import 아래에 추가
+from datasets.ptbxl import get_ptbxl
+from models.resnet1d import ResNet1D
 
 NUM_CLASSES = {
     "cifar10": 6,
@@ -27,6 +30,7 @@ NUM_CLASSES = {
     "svhn": 6,
     "tiny": 100,
     "imagenet": 500,
+    "ptbxl": 3,  # [추가]
 }
 
 AUGMENTS = {"semi": SemiAugment, "test": TestAugment}
@@ -91,6 +95,8 @@ def main_worker(local_rank: int, config: object):
         model = inceptionv4(class_nums=num_classes)
     elif config.backbone_type == "resnet50":
         model = ResNet50(num_classes=num_classes)
+    elif config.backbone_type == "resnet1d":
+        model = ResNet1D(num_classes=num_classes, normalize=False) # FixMatch는 보통 normalize 안씀 (확인 필요)
     else:
         raise NotImplementedError
 
@@ -168,6 +174,22 @@ def main_worker(local_rank: int, config: object):
         open_test_set = TinyImageNet(
             data_name=config.data, dataset=datasets["test_total"], transform=test_trans
         )
+    # [추가] PTB-XL 데이터셋 연결
+    elif config.data == "ptbxl":
+        train_labeled_dataset, train_unlabeled_dataset, val_dataset, test_dataset = get_ptbxl(config, root=config.root)
+        
+        # FixMatch는 별도의 래퍼(CIFAR, CIFAR_STRONG) 없이 바로 사용 (ptbxl.py에서 처리함)
+        labeled_set = train_labeled_dataset
+        unlabeled_set = train_unlabeled_dataset
+        eval_set = val_dataset
+        test_set = test_dataset
+        open_test_set = test_dataset 
+
+        # 로깅용 더미 변수
+        datasets = {
+            'l_train': {'labels': train_labeled_dataset.labels},
+            'u_train': {'labels': train_unlabeled_dataset.labels}
+        }
 
     elif config.data == "svhn":
 
